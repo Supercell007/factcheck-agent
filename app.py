@@ -72,7 +72,8 @@ def extract_text_from_pdf(file):
 
 
 def call_gemini(prompt, gemini_key):
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + gemini_key
+    # FIXED: Using standard 'gemini-1.5-flash' for wider regional support
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + gemini_key
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
@@ -107,7 +108,7 @@ def extract_claims(text, gemini_key):
 
 
 def web_search(query, serper_key):
-    url = "https://google.serper.dev/search"
+    url = "[https://google.serper.dev/search](https://google.serper.dev/search)"
     headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
     r = requests.post(url, headers=headers, json={"q": query, "num": 5}, timeout=30)
     r.raise_for_status()
