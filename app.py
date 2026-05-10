@@ -108,7 +108,7 @@ def extract_claims(text, gemini_key):
 
 
 def web_search(query, serper_key):
-    url = "[https://google.serper.dev/search](https://google.serper.dev/search)"
+    url = "https://google.serper.dev/search"
     headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
     r = requests.post(url, headers=headers, json={"q": query, "num": 5}, timeout=30)
     r.raise_for_status()
