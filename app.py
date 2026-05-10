@@ -73,7 +73,7 @@ def extract_text_from_pdf(file):
 
 def call_gemini(prompt, gemini_key):
     # UPDATED MODEL NAME TO 3.1-FLASH
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent?key=" + gemini_key
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_key
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
@@ -203,7 +203,7 @@ if uploaded:
             status.markdown("🔍 Verifying claim " + str(i + 1) + "/" + str(len(claims)))
             try:
                 evidence = web_search(claim.get("search_query", claim["claim"]), serper_key)
-                time.sleep(0.5)
+                time.sleep(3)
                 verdict = verify_claim(claim, evidence, gemini_key)
                 results.append(verdict)
             except Exception as e:
