@@ -72,7 +72,6 @@ def extract_text_from_pdf(file):
 
 
 def call_gemini(prompt, gemini_key):
-    # UPDATED MODEL NAME TO 3.1-FLASH
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=" + gemini_key
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
