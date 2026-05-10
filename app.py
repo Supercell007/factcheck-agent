@@ -1,5 +1,5 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import pypdf
 import requests
 import json
 import re
@@ -38,7 +38,7 @@ st.markdown("""
   }
   .card-verified  { border-left-color: #22c55e; }
   .card-inaccurate{ border-left-color: #f59e0b; }
-  .card-false     { border-left-color: #ef4444; }
+  .card-false      { border-left-color: #ef4444; }
   .card-unverified{ border-left-color: #64748b; }
 
   .badge {
@@ -119,8 +119,11 @@ with st.sidebar:
 # ── Helper functions ───────────────────────────────────────────────────────────
 
 def extract_text_from_pdf(file) -> str:
-    doc = fitz.open(stream=file.read(), filetype="pdf")
-    return "\n".join(page.get_text() for page in doc)
+    reader = pypdf.PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
 
 
 def extract_claims(text: str, gemini_key: str) -> list[dict]:
@@ -144,188 +147,17 @@ Return ONLY valid JSON, no markdown, no explanation.
 TEXT:
 {text[:8000]}
 """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+    # FIXED MODEL NAME TO 1.5-FLASH-LATEST
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={gemini_key}"
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}}
     r = requests.post(url, json=body, timeout=60)
     r.raise_for_status()
     raw = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
-    return json.loads(raw)
+    raw = re.sub(r"
+http://googleusercontent.com/immersive_entry_chip/0
+http://googleusercontent.com/immersive_entry_chip/1
 
+**Final Security Warning:** Since you mentioned your key was visible in a screenshot, please **delete that key now** at [aistudio.google.com](https://aistudio.google.com/) and create a new one. This protects you from someone else using up your credits!
 
-def web_search(query: str, serper_key: str) -> str:
-    """Search web via Serper, return a condensed text snippet."""
-    url = "https://google.serper.dev/search"
-    headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
-    body = {"q": query, "num": 5}
-    r = requests.post(url, headers=headers, json=body, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-
-    snippets = []
-    # Answer box
-    if "answerBox" in data:
-        ab = data["answerBox"]
-        snippets.append(ab.get("answer") or ab.get("snippet", ""))
-    # Organic results
-    for res in data.get("organic", [])[:4]:
-        snippets.append(f"{res.get('title','')} — {res.get('snippet','')}")
-    return " | ".join(snippets)[:3000]
-
-
-def verify_claim(claim: dict, web_evidence: str, gemini_key: str) -> dict:
-    """Ask Gemini to verdict the claim given web evidence."""
-    prompt = f"""You are a strict fact-checker. Given a claim and web search evidence, return a verdict.
-
-CLAIM: {claim['claim']}
-CONTEXT: {claim.get('context', '')}
-
-WEB EVIDENCE:
-{web_evidence}
-
-Return a JSON object with EXACTLY these keys:
-- "verdict": one of "Verified", "Inaccurate", "False", "Unverified"
-- "explanation": 1-2 sentences explaining your verdict
-- "real_fact": if Inaccurate or False, state the correct fact based on evidence. Otherwise null.
-- "confidence": "High", "Medium", or "Low"
-
-Rules:
-- "Verified": evidence clearly supports the claim
-- "Inaccurate": claim has wrong numbers/dates but the topic exists (e.g. outdated stat)
-- "False": evidence contradicts the claim or claim is fabricated
-- "Unverified": insufficient evidence to confirm or deny
-
-Return ONLY valid JSON, no markdown.
-"""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
-    body = {"contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 512}}
-    r = requests.post(url, json=body, timeout=60)
-    r.raise_for_status()
-    raw = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
-    result = json.loads(raw)
-    result["claim"]   = claim["claim"]
-    result["context"] = claim.get("context", "")
-    return result
-
-
-def verdict_badge(v: str) -> str:
-    icons = {"Verified": "✅", "Inaccurate": "⚠️", "False": "❌", "Unverified": "🔘"}
-    css   = {"Verified": "verified", "Inaccurate": "inaccurate", "False": "false", "Unverified": "unverified"}
-    icon  = icons.get(v, "🔘")
-    cls   = css.get(v, "unverified")
-    return f'<span class="badge badge-{cls}">{icon} {v}</span>'
-
-
-# ── Main UI ────────────────────────────────────────────────────────────────────
-
-uploaded = st.file_uploader("📄 Upload a PDF to fact-check", type=["pdf"])
-
-if uploaded:
-    if not gemini_key or not serper_key:
-        st.warning("⚠️ Please enter both API keys in the sidebar to continue.")
-        st.stop()
-
-    if st.button("🚀 Run Fact-Check"):
-        results = []
-
-        # Step 1: Extract text
-        with st.spinner("📄 Extracting text from PDF..."):
-            text = extract_text_from_pdf(uploaded)
-            if len(text.strip()) < 50:
-                st.error("Could not extract readable text from this PDF.")
-                st.stop()
-            st.success(f"✅ Extracted {len(text):,} characters from PDF")
-
-        # Step 2: Extract claims
-        with st.spinner("🧠 Identifying verifiable claims with Gemini..."):
-            try:
-                claims = extract_claims(text, gemini_key)
-                if not claims:
-                    st.warning("No specific verifiable claims found in this document.")
-                    st.stop()
-                st.success(f"✅ Found {len(claims)} claims to verify")
-            except Exception as e:
-                st.error(f"Gemini error during claim extraction: {e}")
-                st.stop()
-
-        # Step 3+4: Search + Verify each claim
-        progress = st.progress(0, text="Verifying claims...")
-        status   = st.empty()
-
-        for i, claim in enumerate(claims):
-            status.markdown(f"🔍 Verifying claim {i+1}/{len(claims)}: *{claim['claim'][:80]}...*")
-            try:
-                evidence = web_search(claim.get("search_query", claim["claim"]), serper_key)
-                time.sleep(0.3)  # be polite to APIs
-                verdict  = verify_claim(claim, evidence, gemini_key)
-                results.append(verdict)
-            except Exception as e:
-                results.append({
-                    "claim": claim["claim"],
-                    "context": claim.get("context", ""),
-                    "verdict": "Unverified",
-                    "explanation": f"Error during verification: {str(e)}",
-                    "real_fact": None,
-                    "confidence": "Low",
-                })
-            progress.progress((i + 1) / len(claims))
-
-        status.empty()
-        progress.empty()
-
-        # ── Results ────────────────────────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("## 📊 Fact-Check Report")
-
-        # Summary stats
-        counts = {v: sum(1 for r in results if r["verdict"] == v)
-                  for v in ["Verified", "Inaccurate", "False", "Unverified"]}
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#22c55e">{counts["Verified"]}</div><div class="stat-label">✅ Verified</div></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#f59e0b">{counts["Inaccurate"]}</div><div class="stat-label">⚠️ Inaccurate</div></div>', unsafe_allow_html=True)
-        with col3:
-            st.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#ef4444">{counts["False"]}</div><div class="stat-label">❌ False</div></div>', unsafe_allow_html=True)
-        with col4:
-            st.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#64748b">{counts["Unverified"]}</div><div class="stat-label">🔘 Unverified</div></div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Filter
-        filter_opt = st.selectbox("Filter by verdict:", ["All", "Verified", "Inaccurate", "False", "Unverified"])
-        filtered = results if filter_opt == "All" else [r for r in results if r["verdict"] == filter_opt]
-
-        # Claim cards
-        for r in filtered:
-            v   = r.get("verdict", "Unverified")
-            css = {"Verified": "verified", "Inaccurate": "inaccurate", "False": "false", "Unverified": "unverified"}.get(v, "unverified")
-
-            real_fact_html = ""
-            if r.get("real_fact"):
-                real_fact_html = f'<div class="real-fact">💡 <b>Real fact:</b> {r["real_fact"]}</div>'
-
-            conf_color = {"High": "#22c55e", "Medium": "#f59e0b", "Low": "#ef4444"}.get(r.get("confidence",""), "#64748b")
-
-            st.markdown(f"""
-<div class="card card-{css}">
-  {verdict_badge(v)}
-  <span style="font-size:0.75rem;color:{conf_color};margin-left:8px;">● {r.get('confidence','?')} confidence</span>
-  <div class="claim-text">"{r['claim']}"</div>
-  <div class="explanation">{r.get('explanation','')}</div>
-  {real_fact_html}
-</div>
-""", unsafe_allow_html=True)
-
-        # Download JSON report
-        st.markdown("---")
-        st.download_button(
-            label="⬇️ Download Full Report (JSON)",
-            data=json.dumps(results, indent=2),
-            file_name="factcheck_report.json",
-            mime="application/json",
-        )
+Does the app work correctly now once you've pasted this in?
