@@ -73,7 +73,7 @@ def extract_text_from_pdf(file):
 
 def call_gemini(prompt, gemini_key):
     # FIXED: Using standard 'gemini-1.5-flash' for wider regional support
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + gemini_key
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + gemini_key
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
