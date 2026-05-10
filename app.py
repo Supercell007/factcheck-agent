@@ -72,8 +72,8 @@ def extract_text_from_pdf(file):
 
 
 def call_gemini(prompt, gemini_key):
-    # UPDATED MODEL NAME TO 2.5-FLASH
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + gemini_key
+    # UPDATED MODEL NAME TO 3.1-FLASH
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent?key=" + gemini_key
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
@@ -92,7 +92,6 @@ def call_gemini(prompt, gemini_key):
     
     st.error("Too many requests. Please wait a few minutes before trying again.")
     return None
-    r.raise_for_status()
 
 
 def extract_claims(text, gemini_key):
