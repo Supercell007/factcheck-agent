@@ -73,7 +73,7 @@ def extract_text_from_pdf(file):
 
 def call_gemini(prompt, gemini_key):
     # UPDATED MODEL NAME TO 3.1-FLASH
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + gemini_key
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_key
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
@@ -85,7 +85,7 @@ def call_gemini(prompt, gemini_key):
         if r.status_code == 429:
             # Wait longer after each failed attempt (30s, 60s, etc.)
             st.warning(f"Rate limited. Retrying in {30 * (attempt + 1)} seconds...")
-            time.sleep(10 * (attempt + 1))
+            time.sleep(60 * (attempt + 1))
             continue
         r.raise_for_status()
         return r.json()["candidates"][0]["content"]["parts"][0]["text"]
